@@ -15,10 +15,12 @@
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
+"use strict";
 
-var exec = require('cordova/exec');
+var exec = require("cordova/exec");
 
 var SOCKET_EVENT = "SOCKET_EVENT";
+var SOCKET_SERVER_EVENT = "SOCKET_SERVER_EVENT";
 var CORDOVA_SERVICE_NAME = "SocketsForCordova";
 
 Socket.State = {};
@@ -27,72 +29,212 @@ Socket.State[Socket.State.OPENING = 1] = "OPENING";
 Socket.State[Socket.State.OPENED = 2] = "OPENED";
 Socket.State[Socket.State.CLOSING = 3] = "CLOSING";
 
-function Socket() {
+ServerSocket.State = {};
+ServerSocket.State[ServerSocket.State.STOPPED = 0] = "STOPPED";
+ServerSocket.State[ServerSocket.State.STARTING = 1] = "STARTING";
+ServerSocket.State[ServerSocket.State.STARTED = 2] = "STARTED";
+ServerSocket.State[ServerSocket.State.STOPPING = 3] = "STOPPING";
+
+function Socket(socketKey) {
     this._state = Socket.State.CLOSED;
     this.onData = null;
     this.onClose = null;
     this.onError = null;
-    this.socketKey = guid();
+    this.socketKey = socketKey || guid();
 }
 
-Socket.prototype.open = function (host, port, success, error) {
+function ServerSocket(serverSocketKey) {
+    this._state = ServerSocket.State.STOPPED;
+    this.onOpened = null;
+    this.onStopped = null;
+    this.serverSocketKey = serverSocketKey || guid();
+}
 
-    success = success || function() { };
-    error = error || function() { };
+ServerSocket.prototype.start = function (iface, port, success, error) {
+    success = success || (() => {});
+    error = error || (() => {});
+
+    if (!this._ensureState(ServerSocket.State.STOPPED, error)) {
+        return;
+    }
+
+    var socketServerEventHandler = (event) => {
+        var payload = event.payload;
+
+        if (payload.serverSocketKey !== this.serverSocketKey) {
+            return;
+        }
+
+        switch (payload.type) {
+        case "Connected":
+            var socket = new Socket(payload.socketKey);
+
+            var socketEventHandler = (event) => {
+                var payload = event.payload;
+
+                if (payload.socketKey !== socket.socketKey) {
+                    return;
+                }
+
+                switch (payload.type) {
+                case "Close":
+                    socket._state = Socket.State.CLOSED;
+                    window.document.removeEventListener(SOCKET_EVENT, socketEventHandler);
+                    if (socket.onClose) {
+                        socket.onClose(payload.hasError);
+                    }
+                    break;
+                case "DataReceived":
+                    if (socket.onData) {
+                        socket.onData(new Uint8Array(payload.data));
+                    }
+                    break;
+                case "Error":
+                    if (socket.onError) {
+                        socket.onError(payload.errorMessage);
+                    }
+                    break;
+                default:
+                    console.error("SocketsForCordova: Unknown event type " + payload.type + ", socket key: " + payload.socketKey);
+                    break;
+                }
+            };
+
+            socket._state = Socket.State.OPENED;
+            window.document.addEventListener(SOCKET_EVENT, socketEventHandler);
+
+            if (this.onOpened) {
+                this.onOpened(socket);
+            }
+            break;
+        case "Stopped":
+            this._state = ServerSocket.State.STOPPED;
+            window.document.removeEventListener(SOCKET_SERVER_EVENT, socketServerEventHandler);
+            if (this.onStopped) {
+                this.onStopped(payload.hasError);
+            }
+            break;
+        default:
+            console.error("SocketsForCordova: Unknown event type " + payload.type + ", socket key: " + payload.socketKey);
+            break;
+        }
+    };
+
+    this._state = ServerSocket.State.STARTING;
+
+    exec(
+        () => {
+            this._state = ServerSocket.State.STARTED;
+            window.document.addEventListener(SOCKET_SERVER_EVENT, socketServerEventHandler);
+            success();
+        },
+        (errorMessage) => {
+            this._state = ServerSocket.State.STOPPED;
+            error(errorMessage);
+        },
+        CORDOVA_SERVICE_NAME,
+        "startServer",
+        [ this.serverSocketKey, iface, port ]
+    );
+};
+
+ServerSocket.prototype.startAsync = function (iface, port) {
+    return new Promise((resolve, reject) => {
+        return this.start(iface, port, resolve, reject);
+    });
+};
+
+ServerSocket.prototype.stop = function (success, error) {
+    success = success || (() => {});
+    error = error || (() => {});
+
+    if (!this._ensureState(ServerSocket.State.STARTED, error)) {
+        return;
+    }
+
+    this._state = ServerSocket.State.STOPPING;
+
+    exec(
+        success,
+        error,
+        CORDOVA_SERVICE_NAME,
+        "stopServer",
+        [ this.serverSocketKey ]
+    );
+};
+
+ServerSocket.prototype.stopAsync = function () {
+    return new Promise((resolve, reject) => {
+        return this.stop(resolve, reject);
+    });
+};
+
+Socket.prototype.open = function (host, port, success, error) {
+    success = success || (() => {});
+    error = error || (() => {});
 
     if (!this._ensureState(Socket.State.CLOSED, error)) {
         return;
     }
 
-    var _that = this;
-
-    function socketEventHandler(event) {
-
+    var socketEventHandler = (event) => {
         var payload = event.payload;
 
-        if (payload.socketKey !== _that.socketKey) {
+        if (payload.socketKey !== this.socketKey) {
             return;
         }
 
         switch (payload.type) {
-            case "Close":
-                _that._state = Socket.State.CLOSED;
-                window.document.removeEventListener(SOCKET_EVENT, socketEventHandler);
-                _that.onClose(payload.hasError);
-                break;
-            case "DataReceived":
-                _that.onData(new Uint8Array(payload.data));
-                break;
-            case "Error":
-                _that.onError(payload.errorMessage);
-                break;
-            default:
-                console.error("SocketsForCordova: Unknown event type " + payload.type + ", socket key: " + payload.socketKey);
-                break;
+        case "Close":
+            this._state = Socket.State.CLOSED;
+            window.document.removeEventListener(SOCKET_EVENT, socketEventHandler);
+            if (this.onClose) {
+                this.onClose(payload.hasError);
+            }
+            break;
+        case "DataReceived":
+            if (this.onData) {
+                this.onData(new Uint8Array(payload.data));
+            }
+            break;
+        case "Error":
+            if (this.onError) {
+                this.onError(payload.errorMessage);
+            }
+            break;
+        default:
+            console.error("SocketsForCordova: Unknown event type " + payload.type + ", socket key: " + payload.socketKey);
+            break;
         }
-    }
+    };
 
-    _that._state = Socket.State.OPENING;
+    this._state = Socket.State.OPENING;
 
     exec(
-        function () {
-            _that._state = Socket.State.OPENED;
+        () => {
+            this._state = Socket.State.OPENED;
             window.document.addEventListener(SOCKET_EVENT, socketEventHandler);
             success();
         },
-        function(errorMessage) {
-            _that._state = Socket.State.CLOSED;
+        (errorMessage) => {
+            this._state = Socket.State.CLOSED;
             error(errorMessage);
         },
         CORDOVA_SERVICE_NAME,
         "open",
-        [ this.socketKey, host, port ]);
+        [ this.socketKey, host, port ]
+    );
+};
+
+Socket.prototype.openAsync = function (host, port) {
+    return new Promise((resolve, reject) => {
+        return this.open(host, port, resolve, reject);
+    });
 };
 
 Socket.prototype.write = function (data, success, error) {
-
-    success = success || function() { };
-    error = error || function() { };
+    success = success || (() => {});
+    error = error || (() => {});
 
     if (!this._ensureState(Socket.State.OPENED, error)) {
         return;
@@ -107,13 +249,19 @@ Socket.prototype.write = function (data, success, error) {
         error,
         CORDOVA_SERVICE_NAME,
         "write",
-        [ this.socketKey, dataToWrite ]);
+        [ this.socketKey, dataToWrite ]
+    );
+};
+
+Socket.prototype.writeAsync = function (data) {
+    return new Promise((resolve, reject) => {
+        return this.write(data, resolve, reject);
+    });
 };
 
 Socket.prototype.shutdownWrite = function (success, error) {
-
-    success = success || function() { };
-    error = error || function() { };
+    success = success || (() => {});
+    error = error || (() => {});
 
     if (!this._ensureState(Socket.State.OPENED, error)) {
         return;
@@ -124,13 +272,19 @@ Socket.prototype.shutdownWrite = function (success, error) {
         error,
         CORDOVA_SERVICE_NAME,
         "shutdownWrite",
-        [ this.socketKey ]);
+        [ this.socketKey ]
+    );
+};
+
+Socket.prototype.shutdownWriteAsync = function () {
+    return new Promise((resolve, reject) => {
+        return this.shutdownWrite(resolve, reject);
+    });
 };
 
 Socket.prototype.close = function (success, error) {
-
-    success = success || function() { };
-    error = error || function() { };
+    success = success || (() => {});
+    error = error || (() => {});
 
     if (!this._ensureState(Socket.State.OPENED, error)) {
         return;
@@ -143,10 +297,25 @@ Socket.prototype.close = function (success, error) {
         error,
         CORDOVA_SERVICE_NAME,
         "close",
-        [ this.socketKey ]);
+        [ this.socketKey ]
+    );
+};
+
+Socket.prototype.closeAsync = function () {
+    return new Promise((resolve, reject) => {
+        return this.close(resolve, reject);
+    });
 };
 
 Object.defineProperty(Socket.prototype, "state", {
+    get: function () {
+        return this._state;
+    },
+    enumerable: true,
+    configurable: true
+});
+
+Object.defineProperty(ServerSocket.prototype, "state", {
     get: function () {
         return this._state;
     },
@@ -167,9 +336,30 @@ Socket.prototype._ensureState = function(requiredState, errorCallback) {
     }
 };
 
+ServerSocket.prototype._ensureState = function(requiredState, errorCallback) {
+    var state = this._state;
+    if (state != requiredState) {
+        window.setTimeout(function() {
+            errorCallback("Invalid operation for this socket state: " + ServerSocket.State[state]);
+        });
+        return false;
+    }
+    else {
+        return true;
+    }
+};
+
 Socket.dispatchEvent = function (event) {
-    var eventReceive = document.createEvent('Events');
+    var eventReceive = document.createEvent("Events");
     eventReceive.initEvent(SOCKET_EVENT, true, true);
+    eventReceive.payload = event;
+
+    document.dispatchEvent(eventReceive);
+};
+
+ServerSocket.dispatchEvent = function (event) {
+    var eventReceive = document.createEvent("Events");
+    eventReceive.initEvent(SOCKET_SERVER_EVENT, true, true);
     eventReceive.payload = event;
 
     document.dispatchEvent(eventReceive);
@@ -191,8 +381,8 @@ var guid = (function () {
     }
 
     return function () {
-        return s4() + s4() + '-' + s4() + '-' + s4() + '-' +
-            s4() + '-' + s4() + s4() + s4();
+        return s4() + s4() + "-" + s4() + "-" + s4() + "-" +
+            s4() + "-" + s4() + s4() + s4();
     };
 })();
 
@@ -210,4 +400,7 @@ if (navigator.userAgent.match(/iemobile/i)) {
     });
 }
 
-module.exports = Socket;
+module.exports = {
+    Socket,
+    ServerSocket
+};

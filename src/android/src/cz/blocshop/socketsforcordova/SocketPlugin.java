@@ -1,27 +1,23 @@
-/**
- * Copyright (c) 2015, Blocshop s.r.o.
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms are permitted
- * provided that the above copyright notice and this paragraph are
- * duplicated in all such forms and that any documentation,
- * advertising materials, and other materials related to such
- * distribution and use acknowledge that the software was developed
- * by the Blocshop s.r.o.. The name of the
- * Blocshop s.r.o. may not be used to endorse or promote products derived
- * from this software without specific prior written permission.
- * THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+/*
+  Copyright (c) 2015, Blocshop s.r.o.
+  All rights reserved.
+
+  Redistribution and use in source and binary forms are permitted
+  provided that the above copyright notice and this paragraph are
+  duplicated in all such forms and that any documentation,
+  advertising materials, and other materials related to such
+  distribution and use acknowledge that the software was developed
+  by the Blocshop s.r.o.. The name of the
+  Blocshop s.r.o. may not be used to endorse or promote products derived
+  from this software without specific prior written permission.
+  THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR
+  IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
+  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
 package cz.blocshop.socketsforcordova;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import android.annotation.SuppressLint;
 
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaArgs;
@@ -30,27 +26,35 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import android.annotation.SuppressLint;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 public class SocketPlugin extends CordovaPlugin {
-	
-	Map<String, SocketAdapter> socketAdapters = new HashMap<String, SocketAdapter>(); 
+	private Map<String, SocketAdapter> socketAdapters = new HashMap<String, SocketAdapter>();
+	private Map<String, ServerSocketAdapter> serverSocketAdapters = new HashMap<String, ServerSocketAdapter>();
 	
 	@Override
 	public boolean execute(String action, CordovaArgs args, CallbackContext callbackContext) throws JSONException {
-
-		if (action.equals("open")) {
+		if ("open".equals(action)) {
 			this.open(args, callbackContext);
-		} else if (action.equals("write")) {
+		} else if ("write".equals(action)) {
 			this.write(args, callbackContext);
-		} else if (action.equals("shutdownWrite")) {
+		} else if ("shutdownWrite".equals(action)) {
 			this.shutdownWrite(args, callbackContext);
-		} else if (action.equals("close")) {
+		} else if ("close".equals(action)) {
 			this.close(args, callbackContext);
-		} else if (action.equals("setOptions")) {
+		} else if ("setOptions".equals(action)) {
 			this.setOptions(args, callbackContext);
+		} else if ("startServer".equals(action)) {
+			this.startServer(args, callbackContext);
+		} else if ("stopServer".equals(action)) {
+			this.stopServer(args, callbackContext);
 		} else {
-			callbackContext.error(String.format("SocketPlugin - invalid action:", action));
+			callbackContext.error(String.format("SocketPlugin - invalid action: %s", action));
 			return false;
 		}
 		return true;
@@ -106,9 +110,9 @@ public class SocketPlugin extends CordovaPlugin {
 	private void close(CordovaArgs args, CallbackContext callbackContext) throws JSONException {
 		String socketKey = args.getString(0);
 		
-		SocketAdapter socket = this.getSocketAdapter(socketKey);
-		
 		try {
+			SocketAdapter socket = this.getSocketAdapter(socketKey);
+
 			socket.close();
 			callbackContext.success();
 		} catch (IOException e) {
@@ -117,7 +121,6 @@ public class SocketPlugin extends CordovaPlugin {
 	}
 	
 	private void setOptions(CordovaArgs args, CallbackContext callbackContext) throws JSONException {
-		
 		String socketKey = args.getString(0);
 		JSONObject optionsJSON = args.getJSONObject(1);
 		
@@ -133,12 +136,39 @@ public class SocketPlugin extends CordovaPlugin {
 		options.setTrafficClass(getIntegerPropertyFromJSON(optionsJSON, "trafficClass"));
 		
 		try {
-			socket.close();
+			socket.setOptions(options);
 			callbackContext.success();
 		} catch (IOException e) {
 			callbackContext.error(e.toString());
 		}
 	}
+	
+	private void startServer(CordovaArgs args, CallbackContext callbackContext) throws JSONException {
+		String serverSocketKey = args.getString(0);
+		String iface = args.getString(1);
+		int    port = args.getInt(2);
+
+        try {
+            ServerSocketAdapter serverSocket = new ServerSocketAdapterImpl();
+            serverSocket.setStartedEventHandler(new ServerStartedHandler(serverSocketKey, serverSocket, callbackContext));
+            serverSocket.setStartErrorEventHandler(new ServerStartErrorHandler(callbackContext));
+            serverSocket.setOpenedEventHandler(new ServerOpenedHandler(serverSocketKey));
+            serverSocket.setStoppedEventHandler(new ServerStoppedHandler(serverSocketKey));
+
+            serverSocket.start(iface, port);
+        } catch (IOException e) {
+            callbackContext.error(e.toString());
+        }
+	}
+
+	private void stopServer(CordovaArgs args, CallbackContext callbackContext) throws JSONException {
+		String serverSocketKey = args.getString(0);
+
+        ServerSocketAdapter serverSocket = getServerSocketAdapter(serverSocketKey);
+
+        serverSocket.stop();
+        callbackContext.success();
+    }
 	
 	private Boolean getBooleanPropertyFromJSON(JSONObject jsonObject, String propertyName) throws JSONException {
 		return jsonObject.has(propertyName) ? jsonObject.getBoolean(propertyName) : null;
@@ -154,16 +184,39 @@ public class SocketPlugin extends CordovaPlugin {
 		}
 		return this.socketAdapters.get(socketKey);
 	}
+
+	private ServerSocketAdapter getServerSocketAdapter(String serverSocketKey) {
+		if (!this.serverSocketAdapters.containsKey(serverSocketKey)) {
+			throw new IllegalStateException("Socket isn't connected.");
+		}
+		return this.serverSocketAdapters.get(serverSocketKey);
+	}
 	
-	private void dispatchEvent(JSONObject jsonEventObject) {
-		this.webView.sendJavascript(String.format("window.Socket.dispatchEvent(%s);", jsonEventObject.toString()));		
-	}	
+	private void dispatchEvent(final JSONObject jsonEventObject) {
+		cordova.getActivity().runOnUiThread(new Runnable(){
+			@Override
+			public void run() {
+				webView.loadUrl(String.format("javascript:cordova.plugins.sockets.Socket.dispatchEvent(%s);", jsonEventObject.toString()));
+			}
+		});
+	}
+
+	private void dispatchServerEvent(final JSONObject jsonEventObject) {
+		cordova.getActivity().runOnUiThread(new Runnable(){
+			@Override
+			public void run() {
+				webView.loadUrl(String.format("javascript:cordova.plugins.sockets.ServerSocket.dispatchEvent(%s);", jsonEventObject.toString()));
+			}
+		});
+	}
 	
 	private class CloseEventHandler implements Consumer<Boolean> {
 		private String socketKey;
-		public CloseEventHandler(String socketKey) {
+
+		CloseEventHandler(String socketKey) {
 			this.socketKey = socketKey;
 		}
+
 		@Override
 		public void accept(Boolean hasError) {			
 			socketAdapters.remove(this.socketKey);
@@ -183,7 +236,7 @@ public class SocketPlugin extends CordovaPlugin {
 	
 	private class DataConsumer implements Consumer<byte[]> {
 		private String socketKey;
-		public DataConsumer(String socketKey) {
+		DataConsumer(String socketKey) {
 			this.socketKey = socketKey;
 		}
 		@SuppressLint("NewApi") 
@@ -204,16 +257,16 @@ public class SocketPlugin extends CordovaPlugin {
 		
 		private List<Byte> toByteList(byte[] array) {
 			List<Byte> byteList = new ArrayList<Byte>(array.length);
-			for (int i = 0; i < array.length; i++) {
-				byteList.add(array[i]);
-			}
+            for (byte anArray : array) {
+                byteList.add(anArray);
+            }
 			return byteList;
 		}
 	}
 	
 	private class ErrorEventHandler implements Consumer<String> {
 		private String socketKey;
-		public ErrorEventHandler(String socketKey) {
+		ErrorEventHandler(String socketKey) {
 			this.socketKey = socketKey;
 		}
 		@Override
@@ -233,7 +286,7 @@ public class SocketPlugin extends CordovaPlugin {
 	
 	private class OpenErrorEventHandler implements Consumer<String> {
 		private CallbackContext openCallbackContext;
-		public OpenErrorEventHandler(CallbackContext openCallbackContext) {
+		OpenErrorEventHandler(CallbackContext openCallbackContext) {
 			this.openCallbackContext = openCallbackContext;
 		}
 		@Override
@@ -246,15 +299,102 @@ public class SocketPlugin extends CordovaPlugin {
 		private String socketKey;
 		private SocketAdapter socketAdapter;
 		private CallbackContext openCallbackContext;
-		public OpenEventHandler(String socketKey, SocketAdapter socketAdapter, CallbackContext openCallbackContext) {
+
+		OpenEventHandler(String socketKey, SocketAdapter socketAdapter, CallbackContext openCallbackContext) {
 			this.socketKey = socketKey;
 			this.socketAdapter = socketAdapter;
 			this.openCallbackContext = openCallbackContext;
 		}
+
 		@Override
 		public void accept(Void voidObject) {
 			socketAdapters.put(socketKey, socketAdapter);
 			this.openCallbackContext.success();
+		}
+	}
+
+	private class ServerStartedHandler implements Consumer<Void> {
+		private String serverSocketKey;
+		private ServerSocketAdapter serverSocketAdapter;
+		private CallbackContext openCallbackContext;
+
+        ServerStartedHandler(String serverSocketKey, ServerSocketAdapter serverSocketAdapter, CallbackContext openCallbackContext) {
+			this.serverSocketKey = serverSocketKey;
+			this.serverSocketAdapter = serverSocketAdapter;
+			this.openCallbackContext = openCallbackContext;
+		}
+
+		@Override
+		public void accept(Void voidObject) {
+			serverSocketAdapters.put(serverSocketKey, serverSocketAdapter);
+			openCallbackContext.success();
+		}
+	}
+
+	private class ServerStartErrorHandler implements Consumer<String> {
+		private CallbackContext openCallbackContext;
+
+        ServerStartErrorHandler(CallbackContext openCallbackContext) {
+			this.openCallbackContext = openCallbackContext;
+		}
+
+		@Override
+		public void accept(String errorMessage) {
+			openCallbackContext.error(errorMessage);
+		}
+	}
+
+	private class ServerOpenedHandler implements Consumer<SocketAdapter> {
+		private String serverSocketKey;
+
+        ServerOpenedHandler(String serverSocketKey) {
+			this.serverSocketKey = serverSocketKey;
+		}
+
+		@Override
+		public void accept(SocketAdapter socket) {
+			String socketKey = UUID.randomUUID().toString();
+
+			socket.setCloseEventHandler(new CloseEventHandler(socketKey));
+			socket.setDataConsumer(new DataConsumer(socketKey));
+			socket.setErrorEventHandler(new ErrorEventHandler(socketKey));
+
+			socketAdapters.put(socketKey, socket);
+			
+			try {
+				JSONObject event = new JSONObject();
+				event.put("type", "Connected");
+				event.put("socketKey", socketKey);
+				event.put("serverSocketKey", this.serverSocketKey);
+		
+				dispatchServerEvent(event);
+			} catch (JSONException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+
+	private class ServerStoppedHandler implements Consumer<Boolean> {
+		private String serverSocketKey;
+
+        ServerStoppedHandler(String serverSocketKey) {
+			this.serverSocketKey = serverSocketKey;
+		}
+
+		@Override
+		public void accept(Boolean hasError) {			
+			serverSocketAdapters.remove(serverSocketKey);
+			
+			try {
+				JSONObject event = new JSONObject();
+				event.put("type", "Stopped");
+				event.put("hasError", hasError.booleanValue());
+				event.put("serverSocketKey", serverSocketKey);
+		
+				dispatchServerEvent(event);
+			} catch (JSONException e) {
+				e.printStackTrace();
+			}
 		}
 	}
 }
