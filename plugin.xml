@@ -48,6 +48,9 @@
         <header-file src="src/ios/SocketsForCordova/Classes/SocketAdapter.h" />
         <source-file src="src/ios/SocketsForCordova/Classes/SocketAdapter.m" />
 
+        <header-file src="src/ios/SocketsForCordova/Classes/ServerSocketAdapter.h" />
+        <source-file src="src/ios/SocketsForCordova/Classes/ServerSocketAdapter.m" />
+
 	    <!--<framework src="CoreGraphics.framework" />-->
     </platform>
 
