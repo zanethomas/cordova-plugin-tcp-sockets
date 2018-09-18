@@ -11,6 +11,10 @@
 #include <arpa/inet.h>
 
 NSString * const TCPServerErrorDomain = @"TCPServerErrorDomain";
+int const WRITE_BUFFER_SIZE = 10 * 1024;
+
+NSInputStream *inputStream;
+NSOutputStream *outputStream;
 
 #import "ServerSocketAdapter.h"
 
@@ -27,27 +31,69 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
     ServerSocketAdapter *server = (__bridge ServerSocketAdapter *)info;
     if (kCFSocketAcceptCallBack == type) {
         // for an AcceptCallBack, the data parameter is a pointer to a CFSocketNativeHandle
-        CFSocketNativeHandle nativeSocketHandle = *(CFSocketNativeHandle *)data;
-        uint8_t name[SOCK_MAXADDRLEN];
-        socklen_t namelen = sizeof(name);
-        NSData *peer = nil;
-        if (0 == getpeername(nativeSocketHandle, (struct sockaddr *)name, &namelen)) {
-            peer = [NSData dataWithBytes:name length:namelen];
-        }
-        CFReadStreamRef readStream = NULL;
-        CFWriteStreamRef writeStream = NULL;
-        CFStreamCreatePairWithSocket(kCFAllocatorDefault, nativeSocketHandle, &readStream, &writeStream);
-        if (readStream && writeStream) {
-            CFReadStreamSetProperty(readStream, kCFStreamPropertyShouldCloseNativeSocket, kCFBooleanTrue);
-            CFWriteStreamSetProperty(writeStream, kCFStreamPropertyShouldCloseNativeSocket, kCFBooleanTrue);
-            [server handleNewConnectionFromAddress:peer inputStream:(__bridge NSInputStream *)readStream outputStream:(__bridge NSOutputStream *)writeStream];
-        } else {
-            // on any failure, need to destroy the CFSocketNativeHandle
-            // since we are not going to use it any more
-            close(nativeSocketHandle);
-        }
-        if (readStream) CFRelease(readStream);
-        if (writeStream) CFRelease(writeStream);
+        SocketAdapter *socket = [[SocketAdapter alloc] initWithData:data];
+        [socket startReadLoop];
+//        SocketAdapter *socket = [SocketAdapter new];
+        server.openEventHandler(socket);
+        
+//        CFSocketNativeHandle nativeSocketHandle = *(CFSocketNativeHandle *)data;
+//        uint8_t name[SOCK_MAXADDRLEN];
+//        socklen_t namelen = sizeof(name);
+//        NSData *peer = nil;
+//        if (0 == getpeername(nativeSocketHandle, (struct sockaddr *)name, &namelen)) {
+//            peer = [NSData dataWithBytes:name length:namelen];
+//        }
+//        CFReadStreamRef readStream = NULL;
+//        CFWriteStreamRef writeStream = NULL;
+//        CFStreamCreatePairWithSocket(kCFAllocatorDefault, nativeSocketHandle, &readStream, &writeStream);
+//        if (readStream && writeStream) {
+//            CFReadStreamSetProperty(readStream, kCFStreamPropertyShouldCloseNativeSocket, kCFBooleanTrue);
+//            CFWriteStreamSetProperty(writeStream, kCFStreamPropertyShouldCloseNativeSocket, kCFBooleanTrue);
+//            
+//            if(!CFWriteStreamOpen(writeStream) || !CFReadStreamOpen(readStream)) {
+//                NSLog(@"Error, streams not open");
+//                
+//                @throw [NSException exceptionWithName:@"SocketException" reason:@"Cannot open streams." userInfo:nil];
+//            }
+//            
+//            inputStream = (__bridge NSInputStream *)readStream;
+//            outputStream = (__bridge NSOutputStream *)writeStream;
+//            NSString *response = @"Roger that!";
+//            NSData *data = [[NSData alloc] initWithData:[response dataUsingEncoding:NSASCIIStringEncoding]];
+//            [outputStream write:[data bytes] maxLength:[data length]];
+//            
+////            [server handleNewConnectionFromAddress:peer inputStream:(NSInputStream *)readStream outputStream:(NSOutputStream *)writeStream];
+//        } else {
+//            // on any failure, need to destroy the CFSocketNativeHandle
+//            // since we are not going to use it any more
+//            close(nativeSocketHandle);
+//        }
+//        if (readStream) CFRelease(readStream);
+//        if (writeStream) CFRelease(writeStream);
+    }
+}
+
+- (void)write:(NSArray *)dataArray {
+    int numberOfBatches = ceil((float)dataArray.count / (float)WRITE_BUFFER_SIZE);
+    for (int i = 0; i < (numberOfBatches - 1); i++) {
+        [self writeSubarray:dataArray offset:i * WRITE_BUFFER_SIZE length:WRITE_BUFFER_SIZE];
+    }
+    int lastBatchPosition = (numberOfBatches - 1) * WRITE_BUFFER_SIZE;
+    [self writeSubarray:dataArray offset:lastBatchPosition length:(dataArray.count - lastBatchPosition)];
+}
+
+- (void)writeSubarray:(NSArray *)dataArray offset:(long)offset length:(long)length {
+    uint8_t buf[length];
+    for (long i = 0; i < length; i++) {
+        unsigned char byte = (unsigned char)[[dataArray objectAtIndex:(offset + i)] integerValue];
+        buf[i] = byte;
+    }
+    NSInteger bytesWritten = [outputStream write:buf maxLength:length];
+    if (bytesWritten == -1) {
+        @throw [NSException exceptionWithName:@"SocketException" reason:[outputStream.streamError localizedDescription] userInfo:nil];
+    }
+    if (bytesWritten != length) {
+        [self writeSubarray:dataArray offset:(offset + bytesWritten) length:(length - bytesWritten)];
     }
 }
 
@@ -59,6 +105,7 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
 }
 
 - (void)start:(NSString *)iface port:(NSNumber*)port {
+    NSError *error;
     NSLog(@"server socket adapter start");
     NSLog(@"iface: %@, port: %@", iface, port);
     CFSocketContext socketCtxt = {0, (__bridge void *)(self), NULL, NULL, NULL};
@@ -66,11 +113,14 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
     ipv6socket = CFSocketCreate(kCFAllocatorDefault, PF_INET6, SOCK_STREAM, IPPROTO_TCP, kCFSocketAcceptCallBack, (CFSocketCallBack)&TCPServerAcceptCallBack, &socketCtxt);
     
     if (NULL == ipv4socket || NULL == ipv6socket) {
-//        if (error) *error = [[NSError alloc] initWithDomain:TCPServerErrorDomain code:kTCPServerNoSocketsAvailable userInfo:nil];
+        error = [[NSError alloc] initWithDomain:TCPServerErrorDomain code:kTCPServerNoSocketsAvailable userInfo:nil];
         if (ipv4socket) CFRelease(ipv4socket);
         if (ipv6socket) CFRelease(ipv6socket);
         ipv4socket = NULL;
         ipv6socket = NULL;
+        self.startErrorEventHandler([NSString stringWithFormat:@"%@, %@", error.localizedDescription, error.localizedFailureReason]);
+        return;
+        
 //        return NO;
     }
     
@@ -84,15 +134,17 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
     addr4.sin_len = sizeof(addr4);
     addr4.sin_family = AF_INET;
     addr4.sin_port = htons(port.integerValue);
-    addr4.sin_addr.s_addr = htonl(inet_addr([iface cStringUsingEncoding:NSASCIIStringEncoding]));// htonl(INADDR_ANY); //INADDR_ANY = all loca lost addresses (0.0.0.0)
+    addr4.sin_addr.s_addr = INADDR_ANY; //htonl(inet_addr([iface cStringUsingEncoding:NSASCIIStringEncoding]));// htonl(INADDR_ANY); //INADDR_ANY = all loca lost addresses (0.0.0.0)
     NSData *address4 = [NSData dataWithBytes:&addr4 length:sizeof(addr4)];
     
     if (kCFSocketSuccess != CFSocketSetAddress(ipv4socket, (CFDataRef)address4)) {
-//        if (error) *error = [[NSError alloc] initWithDomain:TCPServerErrorDomain code:kTCPServerCouldNotBindToIPv4Address userInfo:nil];
+        error = [[NSError alloc] initWithDomain:TCPServerErrorDomain code:kTCPServerCouldNotBindToIPv4Address userInfo:nil];
         if (ipv4socket) CFRelease(ipv4socket);
         if (ipv6socket) CFRelease(ipv6socket);
         ipv4socket = NULL;
         ipv6socket = NULL;
+        self.startErrorEventHandler([NSString stringWithFormat:@"%@, %@", error.localizedDescription, error.localizedFailureReason]);
+        return;
 //        return NO;
     }
     
@@ -114,16 +166,18 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
     NSData *address6 = [NSData dataWithBytes:&addr6 length:sizeof(addr6)];
     
     if (kCFSocketSuccess != CFSocketSetAddress(ipv6socket, (CFDataRef)address6)) {
-//        if (error) *error = [[NSError alloc] initWithDomain:TCPServerErrorDomain code:kTCPServerCouldNotBindToIPv6Address userInfo:nil];
+        error = [[NSError alloc] initWithDomain:TCPServerErrorDomain code:kTCPServerCouldNotBindToIPv6Address userInfo:nil];
         if (ipv4socket) CFRelease(ipv4socket);
         if (ipv6socket) CFRelease(ipv6socket);
         ipv4socket = NULL;
         ipv6socket = NULL;
+        self.startErrorEventHandler([NSString stringWithFormat:@"%@, %@", error.localizedDescription, error.localizedFailureReason]);
+        return;
 //        return NO;
     }
     
     // set up the run loop sources for the sockets
-    CFRunLoopRef cfrl = CFRunLoopGetCurrent();
+    CFRunLoopRef cfrl = CFRunLoopGetMain();
     CFRunLoopSourceRef source4 = CFSocketCreateRunLoopSource(kCFAllocatorDefault, ipv4socket, 0);
     CFRunLoopAddSource(cfrl, source4, kCFRunLoopCommonModes);
     CFRelease(source4);
@@ -133,6 +187,7 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
     CFRelease(source6);
     
     // we can only publish the service if we have a type to publish with
+    type = @"_http._tcp.";
     if (nil != type) {
         NSString *publishingDomain = domain ? domain : @"";
         NSString *publishingName = nil;
@@ -144,10 +199,12 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
                 publishingName = [thisHostName substringToIndex:([thisHostName length] - 6)];
             }
         }
-        netService = [[NSNetService alloc] initWithDomain:publishingDomain type:type name:publishingName port:port.integerValue];
+        netService = [[NSNetService alloc] initWithDomain:publishingDomain type:type name:publishingName port:(int)port.integerValue];
         [netService publish];
+        
+        NSLog(@"publishingDomain: %@, publishingName: %@, port: %@", publishingDomain, publishingName, port.stringValue);
     }
-    
+    self.startEventHandler();
 //    return YES;
     
 }
@@ -162,6 +219,7 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
     CFRelease(ipv6socket);
     ipv4socket = NULL;
     ipv6socket = NULL;
+//    self.stopEventHandler(true);
 //    return YES;
 }
 

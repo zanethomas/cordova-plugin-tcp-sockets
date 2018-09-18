@@ -193,6 +193,11 @@
     [self->socketAdapters removeObjectForKey:socketKey];
 }
 
+- (void) removeServerSocketAdapter: (NSString*) socketKey {
+    NSLog(@"Removing server socket adapter from storage.");
+    [self->serverSocketAdapters removeObjectForKey:socketKey];
+}
+
 - (BOOL) socketAdapterExists: (NSString*) socketKey {
 	SocketAdapter* socketAdapter = [self->socketAdapters objectForKey:socketKey];
 	return socketAdapter != nil;
@@ -202,13 +207,24 @@
     NSData *jsonData = [NSJSONSerialization dataWithJSONObject:dictionary options:0 error:nil];
     NSString *jsonString = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
     
-    [self dispatchEvent:jsonString];
+    NSString *jsToEval = [NSString stringWithFormat : @"cordova.plugins.sockets.Socket.dispatchEvent(%@);", jsonString];
+    [self.commandDelegate evalJs:jsToEval];
+
 }
 
-- (void) dispatchEvent: (NSString *) jsonEventString {
-    NSString *jsToEval = [NSString stringWithFormat : @"window.Socket.dispatchEvent(%@);", jsonEventString];
+- (void) dispatchServerEventWithDictionary: (NSDictionary*) dictionary {
+    NSData *jsonData = [NSJSONSerialization dataWithJSONObject:dictionary options:0 error:nil];
+    NSString *jsonString = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
+    
+    NSString *jsToEval = [NSString stringWithFormat : @"cordova.plugins.sockets.ServerSocket.dispatchEvent(%@);", jsonString];
     [self.commandDelegate evalJs:jsToEval];
+    
 }
+
+//- (void) dispatchEvent: (NSString *) jsonEventString {
+//    NSString *jsToEval = [NSString stringWithFormat : @"window.Socket.dispatchEvent(%@);", jsonEventString];
+//    [self.commandDelegate evalJs:jsToEval];
+//}
 
 -(void) startServer: (CDVInvokedUrlCommand *) command {
     NSLog(@"startServer command");
@@ -220,23 +236,30 @@
         self->serverSocketAdapters = [[NSMutableDictionary alloc] init];
     }
     
-    __block ServerSocketAdapter* socketAdapter = [[ServerSocketAdapter alloc] init];
-    socketAdapter.startEventHandler = ^ void () {
+    __block ServerSocketAdapter* serverSocketAdapter = [[ServerSocketAdapter alloc] init];
+    serverSocketAdapter.startEventHandler = ^ void () {
         [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK] callbackId:command.callbackId];
         
-        [self->serverSocketAdapters setObject:socketAdapter forKey:serverSocketKey];
+        [self->serverSocketAdapters setObject:serverSocketAdapter forKey:serverSocketKey];
         
-        socketAdapter = nil;
+        serverSocketAdapter = nil;
     };
-    socketAdapter.startErrorEventHandler = ^ void (NSString *error){
+    serverSocketAdapter.startErrorEventHandler = ^ void (NSString *error){
         [self.commandDelegate
          sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:error]
          callbackId:command.callbackId];
         
-        socketAdapter = nil;
+        serverSocketAdapter = nil;
     };
-    socketAdapter.openEventHandler = ^ void (SocketAdapter *socketAdapter){
+    serverSocketAdapter.openEventHandler = ^ void (SocketAdapter *socketAdapter){
         NSString *socketKey = [[NSUUID UUID] UUIDString];
+        socketAdapter.openEventHandler = ^ void () {
+//            [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK] callbackId:command.callbackId];
+            
+//            [self->socketAdapters setObject:socketAdapter forKey:socketKey];
+//
+//            socketAdapter = nil;
+        };
         socketAdapter.closeEventHandler = ^ void (BOOL hasErrors) {
             [self setCloseEventHandlerWithSocketKey:socketKey andHasErrors:hasErrors];
         };
@@ -255,19 +278,32 @@
         dictionaryData[@"socketKey"] = socketKey;
         dictionaryData[@"serverSocketKey"] = serverSocketKey;
         
-        [self dispatchEventWithDictionary:dictionaryData];
+        [self dispatchServerEventWithDictionary:dictionaryData];
+    };
+    
+    serverSocketAdapter.stopEventHandler = ^ void (bool hasError){
+        NSMutableDictionary *dictionaryData = [[NSMutableDictionary alloc] init];
+        
+//        [serverSocketAdapters removeObjectForKey:serverSocketKey];
+        [self removeServerSocketAdapter:serverSocketKey];
+        
+        dictionaryData[@"type"] = @"Stopped";
+        dictionaryData[@"hasError"] = (hasError == true ? @"true": @"false");
+        dictionaryData[@"serverSocketKey"] = serverSocketKey;
+        
+        [self dispatchServerEventWithDictionary:dictionaryData];
     };
     
     [self.commandDelegate runInBackground:^{
         @try {
-            [socketAdapter start:iface port:port];
+            [serverSocketAdapter start:iface port:port];
         }
         @catch (NSException *e) {
             [self.commandDelegate
              sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:e.reason]
              callbackId:command.callbackId];
             
-            socketAdapter = nil;
+            serverSocketAdapter = nil;
         }
     }];
     
