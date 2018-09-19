@@ -23,12 +23,16 @@ using Windows.Foundation;
 using Windows.Data.Json;
 using Windows.UI.Core;
 using Windows.Networking.Sockets;
+using System.Runtime.InteropServices.WindowsRuntime;
 
 namespace Blocshop.ScoketsForCordova
 {
     public sealed class SocketPlugin
     {
-        public event EventHandler<string> MessageReceived;
+        public event EventHandler<DataReceivedSocketEvent> DataMessageReceived;
+        public event EventHandler<CloseSocketEvent> CloseMessageReceived;
+        public event EventHandler<ErrorSocketEvent> ErrorMessageReceived;
+
         public event EventHandler<string> ServerMessageReceived;
 
         internal delegate Task DataConsumeDelegate(string socketKey, byte[] data);
@@ -54,17 +58,15 @@ namespace Blocshop.ScoketsForCordova
         {
             string socketKey = JsonArray.Parse(parameters).ElementAt(0).GetString();
             string host = JsonArray.Parse(parameters).ElementAt(1).GetString();
+            if (host == "0.0.0.0")
+                host = "127.0.0.1";
             int port = Convert.ToInt32(JsonArray.Parse(parameters).ElementAt(2).GetNumber());
 
             return OpenTask(socketKey, host, port).AsAsyncOperation();
         }
 
-        public IAsyncOperation<string> write(string parameters)
+        public IAsyncOperation<string> write(string socketKey, [ReadOnlyArray]byte[] data)
         {
-            string socketKey = JsonArray.Parse(parameters).ElementAt(0).GetString();
-            string dataJsonArray = JsonArray.Parse(parameters).ElementAt(1).GetString();
-            byte[] data = Encoding.UTF8.GetBytes(dataJsonArray);
-
             return WriteTask(socketKey, data).AsAsyncOperation();
         }
 
@@ -90,6 +92,8 @@ namespace Blocshop.ScoketsForCordova
         {
             string serverSocketKey = JsonArray.Parse(parameters).ElementAt(0).GetString();
             string iface = JsonArray.Parse(parameters).ElementAt(1).GetString();
+            if (iface == "0.0.0.0")
+                iface = "127.0.0.1";
             int port = Convert.ToInt32(JsonArray.Parse(parameters).ElementAt(2).GetNumber());
 
             return StartServerTask(serverSocketKey, iface, port).AsAsyncOperation();
@@ -205,20 +209,13 @@ namespace Blocshop.ScoketsForCordova
                 SocketKey = socketKey
             };
 
-            try
+            if (CloseMessageReceived != null)
             {
-                JsonObject jsonObject = new JsonObject();
-                jsonObject.SetNamedValue("hasError", JsonValue.CreateBooleanValue(socketEvent.HasError));
-                jsonObject.SetNamedValue("socketKey", JsonValue.CreateStringValue(socketEvent.SocketKey));
-                jsonObject.SetNamedValue("type", JsonValue.CreateStringValue(socketEvent.Type));
-
-                var message = jsonObject.ToString();
-
-                await DispatchEvent(message);
-            }
-            catch (Exception ex)
-            {
-                await DispatchEvent(ex.Message + " " + ex.InnerException);
+                await dispatcher.RunAsync(CoreDispatcherPriority.Normal,
+                    new DispatchedHandler(() =>
+                    {
+                        CloseMessageReceived?.Invoke(this, socketEvent);
+                    }));
             }
         }
 
@@ -230,20 +227,13 @@ namespace Blocshop.ScoketsForCordova
                 SocketKey = socketKey
             };
 
-            try
+            if (CloseMessageReceived != null)
             {
-                JsonObject jsonObject = new JsonObject();
-                jsonObject.SetNamedValue("data", JsonValue.CreateStringValue(Encoding.UTF8.GetString(socketEvent.Data, 0, socketEvent.Data.Length)));
-                jsonObject.SetNamedValue("socketKey", JsonValue.CreateStringValue(socketEvent.SocketKey));
-                jsonObject.SetNamedValue("type", JsonValue.CreateStringValue(socketEvent.Type));
-
-                var message = jsonObject.ToString();
-
-                await DispatchEvent(message);
-            }
-            catch (Exception ex)
-            {
-                await DispatchEvent(ex.Message + " " + ex.InnerException);
+                await dispatcher.RunAsync(CoreDispatcherPriority.Normal,
+                    new DispatchedHandler(() =>
+                    {
+                        DataMessageReceived?.Invoke(this, socketEvent);
+                    }));
             }
         }
 
@@ -255,20 +245,13 @@ namespace Blocshop.ScoketsForCordova
                 SocketKey = socketKey
             };
 
-            try
+            if (CloseMessageReceived != null)
             {
-                JsonObject jsonObject = new JsonObject();
-                jsonObject.SetNamedValue("errorMessage", JsonValue.CreateStringValue(socketEvent.ErrorMessage));
-                jsonObject.SetNamedValue("socketKey", JsonValue.CreateStringValue(socketEvent.SocketKey));
-                jsonObject.SetNamedValue("type", JsonValue.CreateStringValue(socketEvent.Type));
-
-                var message = jsonObject.ToString();
-
-                await DispatchEvent(message);
-            }
-            catch (Exception ex)
-            {
-                await DispatchEvent(ex.Message + " " + ex.InnerException);
+                await dispatcher.RunAsync(CoreDispatcherPriority.Normal,
+                    new DispatchedHandler(() =>
+                    {
+                        ErrorMessageReceived?.Invoke(this, socketEvent);
+                    }));
             }
         }
 
@@ -322,17 +305,17 @@ namespace Blocshop.ScoketsForCordova
             }
         }
 
-        private async Task DispatchEvent(string message)
-        {
-            if (MessageReceived != null)
-            {
-                await dispatcher.RunAsync(CoreDispatcherPriority.Normal,
-                    new DispatchedHandler(() =>
-                    {
-                        MessageReceived?.Invoke(this, message);
-                    }));
-            }
-        }
+        //private async Task DispatchEvent(string message)
+        //{
+        //    if (MessageReceived != null)
+        //    {
+        //        await dispatcher.RunAsync(CoreDispatcherPriority.Normal,
+        //            new DispatchedHandler(() =>
+        //            {
+        //                MessageReceived?.Invoke(this, message);
+        //            }));
+        //    }
+        //}
 
         private async Task DispatchServerEvent(string message)
         {
@@ -365,7 +348,5 @@ namespace Blocshop.ScoketsForCordova
 
         public Status Result { get; set; }
         public string Message { get; set; }
-        public bool KeepCallback { get; set; }
-        public string CallbackId { get; set; }
     }
 }

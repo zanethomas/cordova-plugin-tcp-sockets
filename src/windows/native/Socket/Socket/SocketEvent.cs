@@ -15,24 +15,12 @@
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-using System.Runtime.Serialization;
 
 namespace Blocshop.ScoketsForCordova
 {
-    [DataContract]
-    internal abstract class SocketEvent
+    public sealed class CloseSocketEvent
     {
-        [DataMember(Name = "type")]
-        public abstract string Type { get; set; }
-
-        [DataMember(Name = "socketKey")]
-        public string SocketKey { get; set; }
-    }
-
-    [DataContract]
-    internal class CloseSocketEvent : SocketEvent
-    {
-        public override string Type
+        public string Type
         {
             get
             {
@@ -43,14 +31,14 @@ namespace Blocshop.ScoketsForCordova
             }
         }
 
-        [DataMember(Name = "hasError")]
         public bool HasError { get; set; }
+
+        public string SocketKey { get; set; }
     }
 
-    [DataContract]
-    internal class DataReceivedSocketEvent : SocketEvent
+    public sealed class DataReceivedSocketEvent
     {
-        public override string Type
+        public string Type
         {
             get
             {
@@ -61,14 +49,14 @@ namespace Blocshop.ScoketsForCordova
             }
         }
 
-        [DataMember(Name = "data")]
         public byte[] Data { get; set; }
+
+        public string SocketKey { get; set; }
     }
 
-    [DataContract]
-    internal class ErrorSocketEvent : SocketEvent
+    public sealed class ErrorSocketEvent
     {
-        public override string Type
+        public string Type
         {
             get
             {
@@ -79,7 +67,8 @@ namespace Blocshop.ScoketsForCordova
             }
         }
 
-        [DataMember(Name = "errorMessage")]
         public string ErrorMessage { get; set; }
+
+        public string SocketKey { get; set; }
     }
 }

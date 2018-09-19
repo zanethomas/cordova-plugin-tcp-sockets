@@ -18,10 +18,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
 using System.Threading.Tasks;
 using Windows.Foundation;
-using Windows.Networking;
-using Windows.Networking.Sockets;
+
 
 namespace Blocshop.ScoketsForCordova
 {
@@ -31,7 +32,6 @@ namespace Blocshop.ScoketsForCordova
         IAsyncAction Write(byte[] data);
         void ShutdownWrite();
         void Close();
-        SocketAdapterOptions Options { get; set; }
         Action<IEnumerable<byte>> DataConsumer { get; set; }
         Action<bool> CloseEventHandler { get; set; }
         Action<Exception> ErrorHandler { get; set; }
@@ -41,21 +41,16 @@ namespace Blocshop.ScoketsForCordova
     internal class SocketAdapter : ISocketAdapter
     {
         private const int InputStreamBufferSize = 16 * 1024;
-        private readonly StreamSocket socket;
+        private readonly Socket socket;
 
         public Action<IEnumerable<byte>> DataConsumer { get; set; }
         public Action<bool> CloseEventHandler { get; set; }
         public Action<Exception> ErrorHandler { get; set; }
-        public SocketAdapterOptions Options { get; set; }
+        
 
         public SocketAdapter()
         {
-            socket = new StreamSocket();
-        }
-
-        public SocketAdapter(StreamSocket socket)
-        {
-            this.socket = socket;
+            socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         }
 
         public IAsyncAction Connect(string host, int port)
@@ -70,34 +65,38 @@ namespace Blocshop.ScoketsForCordova
 
         public void ShutdownWrite()
         {
-            socket.CancelIOAsync();
+            socket.Shutdown(SocketShutdown.Send);
         }
 
         public void Close()
         {
-            CloseEventHandler?.Invoke(false);
+            CloseEventHandler(false);
             socket.Dispose();
         }
 
         private async Task TaskConnect(string host, int port)
         {
-            await socket.ConnectAsync(new HostName(host), port.ToString());
+            var connectSocketAsyncEventArgs = new SocketAsyncEventArgs
+            {
+                RemoteEndPoint = new DnsEndPoint(host, port)
+            };
 
-            await StartReadTask();
+            await socket.ConnectTaskAsync(connectSocketAsyncEventArgs);
+
+            StartReadTask();
+        }
+
+        private void StartReadTask()
+        {
+            Task.Factory.StartNew(() => RunRead());
         }
 
         private async Task TaskWrite(byte[] data)
         {
-            using (var outputStream = socket.OutputStream.AsStreamForWrite())
-            {
-                await outputStream.WriteAsync(data, 0, data.Length);
-                await outputStream.FlushAsync();
-            }
-        }
+            var socketAsyncEventArgs = new SocketAsyncEventArgs();
+            socketAsyncEventArgs.SetBuffer(data, 0, data.Length);
 
-        private Task StartReadTask()
-        {
-            return Task.Factory.StartNew(() => RunRead());
+            await socket.SendTaskAsync(socketAsyncEventArgs);
         }
 
         private async Task RunRead()
@@ -107,10 +106,13 @@ namespace Blocshop.ScoketsForCordova
             {
                 await RunReadLoop();
             }
-            catch (Exception ex)
+            catch (SocketException ex)
             {
                 hasError = true;
                 ErrorHandler?.Invoke(ex);
+            }
+            catch (Exception ex)
+            {
             }
             finally
             {
@@ -123,17 +125,18 @@ namespace Blocshop.ScoketsForCordova
         {
             byte[] buffer = new byte[InputStreamBufferSize];
             int bytesRead = 0;
-
             do
             {
-                using (MemoryStream ms = new MemoryStream())
-                {
-                    var stream = socket.InputStream.AsStreamForRead();
-                    bytesRead = await stream.ReadAsync(buffer, 0, InputStreamBufferSize);
-                    byte[] data = new byte[bytesRead];
-                    Array.Copy(buffer, data, data.Length);
-                    DataConsumer?.Invoke(data);
-                }
+                var eventArgs = new SocketAsyncEventArgs();
+                eventArgs.SetBuffer(buffer, 0, InputStreamBufferSize);
+
+                await socket.ReceiveTaskAsync(eventArgs);
+
+                bytesRead = eventArgs.BytesTransferred;
+
+                byte[] data = new byte[bytesRead];
+                Array.Copy(buffer, data, data.Length);
+                DataConsumer?.Invoke(data);
             }
             while (bytesRead != 0);
         }
