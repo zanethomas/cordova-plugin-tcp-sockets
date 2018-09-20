@@ -46,6 +46,11 @@ public class SocketAdapterImpl implements SocketAdapter {
         this.executor = Executors.newSingleThreadExecutor();
     }
 
+    public SocketAdapterImpl(Socket socket) {
+        this.socket = socket;
+        this.executor = Executors.newSingleThreadExecutor();
+    }
+
     @Override
     public void open(final String host, final int port) {
         this.executor.submit(new Runnable() {
@@ -59,6 +64,16 @@ public class SocketAdapterImpl implements SocketAdapter {
 					Logging.Error(SocketAdapterImpl.class.getName(), "Error during connecting of socket", e.getCause());
 					invokeOpenErrorEventHandler(e.getMessage());
 				}
+            }
+        });
+    }
+
+    @Override
+    public void submitReadTask() {
+        this.executor.submit(new Runnable() {
+            @Override
+            public void run() {
+                runRead();
             }
         });
     }
@@ -127,15 +142,6 @@ public class SocketAdapterImpl implements SocketAdapter {
     @Override
     public void setErrorEventHandler(Consumer<String> errorEventHandler) {
         this.errorEventHandler = errorEventHandler;
-    }
-
-    private void submitReadTask() {
-        this.executor.submit(new Runnable() {
-            @Override
-            public void run() {
-                runRead();
-            }
-        });
     }
     
     private void runRead() {
