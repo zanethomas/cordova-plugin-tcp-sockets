@@ -55,22 +55,19 @@
     </platform>
 
 
-    <!-- wp8 -->
-    <platform name="wp8">
+    <platform name="windows">
         <config-file target="config.xml" parent="/*">
             <feature name="SocketsForCordova">
-                <param name="wp-package" value="Blocshop.ScoketsForCordova.SocketPlugin"/>
+                <param name="windows-package" value="Blocshop.ScoketsForCordova.SocketsForCordova"/>
+                <Capability Name="internetClient" />
+                <Capability Name="internetClientServer" />
+                <Capability Name="privateNetworkClientServer" />
             </feature>
         </config-file>
-
-		<source-file src="src/wp8/src/SocketAdapter.cs" target-dir="src" />
-		<source-file src="src/wp8/src/SocketAdapterOptions.cs" target-dir="src" />
-		<source-file src="src/wp8/src/SocketExtensions.cs" target-dir="src" />
-		<source-file src="src/wp8/src/SocketPlugin.cs" target-dir="src" />
-		<source-file src="src/wp8/src/SocketEvent.cs" target-dir="src" />
-		<source-file src="src/wp8/src/SocketStorage.cs" target-dir="src" />
+        <js-module src="src/windows/SocketPluginProxy.js" name="SocketPluginProxy">
+            <merges target="" />
+        </js-module>
+		
+        <framework src="src/windows/native/Socket/Socket/Socket.csproj" custom="true" type="projectReference" versions="10.*" />
     </platform>
-
-        
-
 </plugin>
