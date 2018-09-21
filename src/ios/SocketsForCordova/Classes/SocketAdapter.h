@@ -20,7 +20,7 @@
 @interface SocketAdapter : NSObject <NSStreamDelegate> {
 @public
 }
-
+-(SocketAdapter *)initWithData:(const void *)data;
 - (void)open:(NSString *)host port:(NSNumber*)port;
 - (void)write:(NSArray *)dataArray;
 - (void)shutdownWrite;

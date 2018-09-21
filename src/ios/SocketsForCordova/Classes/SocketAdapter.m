@@ -33,31 +33,9 @@ int const WRITE_BUFFER_SIZE = 10 * 1024;
 
 @implementation SocketAdapter
 
--(void)startReadLoop {
-     [self performSelectorOnMainThread:@selector(runReadLoop) withObject:nil waitUntilDone:NO];
-    
-//    [NSTimer scheduledTimerWithTimeInterval:2 repeats:NO block:^(NSTimer * _Nonnull timer) {
-//        [self performSelectorOnMainThread:@selector(runReadLoop) withObject:nil waitUntilDone:NO];
-//    }];
-    
-//    [self runReadLoop];
-
-    //    dispatch_async(dispatch_get_main_queue(), ^{
-//        //some UI methods ej
-//        [self runReadLoop];
-//    });
-}
-
 -(SocketAdapter *)initWithData:(const void *)data {
     self = [super init];
-//    SocketAdapter *socket = [SocketAdapter new];
     CFSocketNativeHandle nativeSocketHandle = *(CFSocketNativeHandle *)data;
-//    uint8_t name[SOCK_MAXADDRLEN];
-//    socklen_t namelen = sizeof(name);
-//    NSData *peer = nil;
-//    if (0 == getpeername(nativeSocketHandle, (struct sockaddr *)name, &namelen)) {
-//        peer = [NSData dataWithBytes:name length:namelen];
-//    }
     readStream = NULL;
     writeStream = NULL;
     CFStreamCreatePairWithSocket(kCFAllocatorDefault, nativeSocketHandle, &readStream, &writeStream);
@@ -72,36 +50,19 @@ int const WRITE_BUFFER_SIZE = 10 * 1024;
             @throw [NSException exceptionWithName:@"SocketException" reason:@"Cannot open streams." userInfo:nil];
         }
         
-        inputStream = (__bridge NSInputStream *)readStream;
+        inputStream = (__bridge_transfer NSInputStream *)readStream;
         [inputStream setDelegate:self];
-//        [inputStream open];
         
-        outputStream = (__bridge NSOutputStream *)writeStream;
-//        [outputStream open];
+        outputStream = (__bridge_transfer NSOutputStream *)writeStream;
         
-//        NSString *response = @"Roger that!";
-//        NSData *data = [[NSData alloc] initWithData:[response dataUsingEncoding:NSASCIIStringEncoding]];
-//        [outputStream write:[data bytes] maxLength:[data length]];
-        
-//        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-//            [self runReadLoop];
-//        });
-        
-//        dispatch_async(dispatch_get_main_queue(), ^{
-//            //some UI methods ej
-//            [self runReadLoop];
-//        });
-        
-//       [self performSelectorOnMainThread:@selector(runReadLoop) withObject:nil waitUntilDone:NO];
-//        [server handleNewConnectionFromAddress:peer inputStream:(__bridge NSInputStream *)readStream outputStream:(__bridge NSOutputStream *)writeStream];
+        [inputStream open];
+        [outputStream open];
+        [self performSelectorOnMainThread:@selector(runReadLoop) withObject:nil waitUntilDone:NO];
     } else {
         // on any failure, need to destroy the CFSocketNativeHandle
         // since we are not going to use it any more
         close(nativeSocketHandle);
     }
-//    if (readStream) CFRelease(readStream);
-//    if (writeStream) CFRelease(writeStream);
-    
     return self;
 }
 
@@ -169,6 +130,7 @@ int const WRITE_BUFFER_SIZE = 10 * 1024;
 
 - (void)runReadLoop {
     [inputStream scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
+    [[NSRunLoop currentRunLoop] run];
 }
 
 - (void)shutdownWrite {

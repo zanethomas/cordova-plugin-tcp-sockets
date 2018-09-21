@@ -221,12 +221,11 @@
     
 }
 
-//- (void) dispatchEvent: (NSString *) jsonEventString {
-//    NSString *jsToEval = [NSString stringWithFormat : @"window.Socket.dispatchEvent(%@);", jsonEventString];
-//    [self.commandDelegate evalJs:jsToEval];
-//}
-
 -(void) startServer: (CDVInvokedUrlCommand *) command {
+//    SocketAdapter *dummySocket = [SocketAdapter new];
+//    [dummySocket open:@"192.168.13.33" port:@1234];
+    
+    
     NSLog(@"startServer command");
     NSString *serverSocketKey = [command.arguments objectAtIndex:0];
     NSString *iface = [command.arguments objectAtIndex:1];
@@ -234,6 +233,10 @@
     
     if (serverSocketAdapters == nil) {
         self->serverSocketAdapters = [[NSMutableDictionary alloc] init];
+    }
+    
+    if (socketAdapters == nil) {
+        self->socketAdapters = [[NSMutableDictionary alloc] init];
     }
     
     __block ServerSocketAdapter* serverSocketAdapter = [[ServerSocketAdapter alloc] init];
@@ -254,11 +257,6 @@
     serverSocketAdapter.openEventHandler = ^ void (SocketAdapter *socketAdapter){
         NSString *socketKey = [[NSUUID UUID] UUIDString];
         socketAdapter.openEventHandler = ^ void () {
-//            [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK] callbackId:command.callbackId];
-            
-//            [self->socketAdapters setObject:socketAdapter forKey:socketKey];
-//
-//            socketAdapter = nil;
         };
         socketAdapter.closeEventHandler = ^ void (BOOL hasErrors) {
             [self setCloseEventHandlerWithSocketKey:socketKey andHasErrors:hasErrors];
@@ -284,7 +282,6 @@
     serverSocketAdapter.stopEventHandler = ^ void (bool hasError){
         NSMutableDictionary *dictionaryData = [[NSMutableDictionary alloc] init];
         
-//        [serverSocketAdapters removeObjectForKey:serverSocketKey];
         [self removeServerSocketAdapter:serverSocketKey];
         
         dictionaryData[@"type"] = @"Stopped";
@@ -293,7 +290,7 @@
         
         [self dispatchServerEventWithDictionary:dictionaryData];
     };
-    
+
     [self.commandDelegate runInBackground:^{
         @try {
             [serverSocketAdapter start:iface port:port];
@@ -302,7 +299,7 @@
             [self.commandDelegate
              sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:e.reason]
              callbackId:command.callbackId];
-            
+
             serverSocketAdapter = nil;
         }
     }];

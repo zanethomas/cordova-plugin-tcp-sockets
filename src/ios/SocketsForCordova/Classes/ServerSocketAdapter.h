@@ -2,7 +2,7 @@
 //  ServerSocketAdapter.h
 //  SocketsForCordova
 //
-//  Created by Alexei Vinidiktov on 10/09/2018.
+//  Created by Alexei on 10/09/2018.
 //
 
 #import <Foundation/Foundation.h>
