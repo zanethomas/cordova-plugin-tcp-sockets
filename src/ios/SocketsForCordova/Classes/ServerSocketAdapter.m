@@ -17,6 +17,9 @@ int const WRITE_BUFFER_SIZE = 10 * 1024;
 
 @implementation ServerSocketAdapter
 
+NSString *_iface; 
+NSNumber *_port;
+
 // This function is called by CFSocket when a new connection comes in.
 // We gather some data here, and convert the function call to a method
 // invocation on TCPServer.
@@ -29,10 +32,17 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
     }
 }
 
-- (void)start:(NSString *)iface port:(NSNumber*)port {
+-(void)stopServer {
+    if (netService) {
+        [netService stop];
+        netService = nil;
+        CFSocketInvalidate(ipv4socket);
+        CFSocketInvalidate(ipv6socket);
+    }
+}
+
+-(bool)initializeServer:(NSString *)iface port:(NSNumber*)port  {
     NSError *error;
-    NSLog(@"server socket adapter start");
-    NSLog(@"iface: %@, port: %@", iface, port);
     CFSocketContext socketCtxt = {0, (__bridge void *)(self), NULL, NULL, NULL};
     ipv4socket = CFSocketCreate(kCFAllocatorDefault, PF_INET, SOCK_STREAM, IPPROTO_TCP, kCFSocketAcceptCallBack, (CFSocketCallBack)&TCPServerAcceptCallBack, &socketCtxt);
     ipv6socket = CFSocketCreate(kCFAllocatorDefault, PF_INET6, SOCK_STREAM, IPPROTO_TCP, kCFSocketAcceptCallBack, (CFSocketCallBack)&TCPServerAcceptCallBack, &socketCtxt);
@@ -44,7 +54,7 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
         ipv4socket = NULL;
         ipv6socket = NULL;
         self.startErrorEventHandler([NSString stringWithFormat:@"%@, %@", error.localizedDescription, error.localizedFailureReason]);
-        return;
+        return false;
     }
     
     int yes = 1;
@@ -67,7 +77,7 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
         ipv4socket = NULL;
         ipv6socket = NULL;
         self.startErrorEventHandler([NSString stringWithFormat:@"%@, %@", error.localizedDescription, error.localizedFailureReason]);
-        return;
+        return false;
     }
     
     if (0 == port) {
@@ -94,7 +104,7 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
         ipv4socket = NULL;
         ipv6socket = NULL;
         self.startErrorEventHandler([NSString stringWithFormat:@"%@, %@", error.localizedDescription, error.localizedFailureReason]);
-        return;
+        return false;
     }
     
     // set up the run loop sources for the sockets
@@ -125,8 +135,35 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
         
         NSLog(@"publishingDomain: %@, publishingName: %@, port: %@", publishingDomain, publishingName, port.stringValue);
     }
-    self.startEventHandler();
     
+    return true;
+}
+
+-(void)restartServer {
+    NSLog(@"server socket adapter RESTART");
+    NSLog(@"iface: %@, port: %@", _iface, _port);
+    [self initializeServer:_iface port:_port];
+}
+
+- (void)start:(NSString *)iface port:(NSNumber*)port {
+    
+    _iface = iface;
+    _port = port;
+    
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                            selector:@selector(stopServer)
+                                                name:UIApplicationWillResignActiveNotification
+                                              object:nil];
+    
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(restartServer)
+                                                 name:UIApplicationDidBecomeActiveNotification
+                                               object:nil];
+    NSLog(@"server socket adapter start");
+    NSLog(@"iface: %@, port: %@", iface, port);
+    if ([self initializeServer:iface port:port] ) {
+        self.startEventHandler();
+    }
 }
 - (void)stop {
     NSLog(@"server socket adapter stop");
