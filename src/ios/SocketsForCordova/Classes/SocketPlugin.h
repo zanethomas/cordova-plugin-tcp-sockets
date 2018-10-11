@@ -19,11 +19,14 @@
 
 @interface SocketPlugin : CDVPlugin {
     NSMutableDictionary *socketAdapters;
+    NSMutableDictionary *serverSocketAdapters;
 }
 
 -(void) open: (CDVInvokedUrlCommand *) command;
 -(void) write: (CDVInvokedUrlCommand *) command;
 -(void) close: (CDVInvokedUrlCommand *) command;
 -(void) setOptions: (CDVInvokedUrlCommand *) command;
+-(void) startServer: (CDVInvokedUrlCommand *) command;
+-(void) stopServer: (CDVInvokedUrlCommand *) command;
 
 @end

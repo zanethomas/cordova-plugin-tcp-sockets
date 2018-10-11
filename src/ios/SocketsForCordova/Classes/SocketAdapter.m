@@ -33,6 +33,39 @@ int const WRITE_BUFFER_SIZE = 10 * 1024;
 
 @implementation SocketAdapter
 
+-(SocketAdapter *)initWithData:(const void *)data {
+    self = [super init];
+    CFSocketNativeHandle nativeSocketHandle = *(CFSocketNativeHandle *)data;
+    readStream = NULL;
+    writeStream = NULL;
+    CFStreamCreatePairWithSocket(kCFAllocatorDefault, nativeSocketHandle, &readStream, &writeStream);
+    
+    if (readStream && writeStream) {
+        CFReadStreamSetProperty(readStream, kCFStreamPropertyShouldCloseNativeSocket, kCFBooleanTrue);
+        CFWriteStreamSetProperty(writeStream, kCFStreamPropertyShouldCloseNativeSocket, kCFBooleanTrue);
+        
+        if(!CFWriteStreamOpen(writeStream) || !CFReadStreamOpen(readStream)) {
+            NSLog(@"Error, streams not open");
+            
+            @throw [NSException exceptionWithName:@"SocketException" reason:@"Cannot open streams." userInfo:nil];
+        }
+        
+        inputStream = (__bridge_transfer NSInputStream *)readStream;
+        [inputStream setDelegate:self];
+        
+        outputStream = (__bridge_transfer NSOutputStream *)writeStream;
+        
+        [inputStream open];
+        [outputStream open];
+        [self performSelectorOnMainThread:@selector(runReadLoop) withObject:nil waitUntilDone:NO];
+    } else {
+        // on any failure, need to destroy the CFSocketNativeHandle
+        // since we are not going to use it any more
+        close(nativeSocketHandle);
+    }
+    return self;
+}
+
 - (void)open:(NSString *)host port:(NSNumber*)port {
     
     NSLog(@"Setting up connection to %@ : %@", host, [port stringValue]);
@@ -97,6 +130,7 @@ int const WRITE_BUFFER_SIZE = 10 * 1024;
 
 - (void)runReadLoop {
     [inputStream scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
+    [[NSRunLoop currentRunLoop] run];
 }
 
 - (void)shutdownWrite {
