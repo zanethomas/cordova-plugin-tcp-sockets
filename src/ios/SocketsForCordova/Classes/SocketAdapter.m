@@ -202,15 +202,21 @@ int const WRITE_BUFFER_SIZE = 10 * 1024;
         }
         case NSStreamEventErrorOccurred:
         {
-            NSLog(@"Stream event error: %@", [[stream streamError] localizedDescription]);
-            
+            NSError *error = stream.streamError;
+            NSLog(@"Stream event error: %@", error.localizedDescription);
             if (wasOpenned) {
-                self.errorEventHandler([[stream streamError] localizedDescription]);
-                self.closeEventHandler(TRUE);
+                self.errorEventHandler(error.localizedDescription);
+                
+                bool isConnectionError = error.code == 61;
+                if (isConnectionError) {
+                    self.openErrorEventHandler(error.localizedDescription);
+                } else {
+                    self.closeEventHandler(TRUE);
+                }
             }
             else {
-                self.errorEventHandler([[stream streamError] localizedDescription]);
-                self.openErrorEventHandler([[stream streamError] localizedDescription]);
+                self.errorEventHandler(error.localizedDescription);
+                self.openErrorEventHandler(error.localizedDescription);
             }
             //[self closeStreams];
             break;
