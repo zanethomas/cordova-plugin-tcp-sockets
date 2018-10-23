@@ -20,6 +20,7 @@
 @interface SocketPlugin : CDVPlugin {
     NSMutableDictionary *socketAdapters;
     NSMutableDictionary *serverSocketAdapters;
+    bool notificationsAreAdded;
 }
 
 -(void) open: (CDVInvokedUrlCommand *) command;

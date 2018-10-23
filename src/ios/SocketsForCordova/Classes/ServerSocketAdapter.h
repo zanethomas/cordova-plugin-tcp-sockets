@@ -20,10 +20,8 @@ typedef enum {
 @interface ServerSocketAdapter : NSObject {
 @private
     id delegate;
-    NSString *domain;
     NSString *name;
     NSString *type;
-    uint16_t port;
     CFSocketRef ipv4socket;
     CFSocketRef ipv6socket;
     NSNetService *netService;
@@ -31,6 +29,11 @@ typedef enum {
 
 - (void)start:(NSString *)iface port:(NSNumber*)port;
 - (void)stop;
+- (void)halt;
+- (void)restartServer;
+
+@property (nonatomic) NSString *iface;
+@property (nonatomic) NSNumber *port;
 
 @property (copy) void (^startEventHandler)();
 @property (copy) void (^startErrorEventHandler)(NSString*);

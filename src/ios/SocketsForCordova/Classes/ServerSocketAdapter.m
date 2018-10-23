@@ -17,8 +17,8 @@ int const WRITE_BUFFER_SIZE = 10 * 1024;
 
 @implementation ServerSocketAdapter
 
-NSString *_iface; 
-NSNumber *_port;
+//NSString *_iface; 
+//NSNumber *_port;
 
 // This function is called by CFSocket when a new connection comes in.
 // We gather some data here, and convert the function call to a method
@@ -120,7 +120,7 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
     // we can only publish the service if we have a type to publish with
     type = @"_http._tcp.";
     if (nil != type) {
-        NSString *publishingDomain = domain ? domain : @"";
+        NSString *publishingDomain = self.iface ? self.iface : @"";
         NSString *publishingName = nil;
         if (nil != name) {
             publishingName = name;
@@ -141,40 +141,53 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
 
 -(void)restartServer {
     NSLog(@"server socket adapter RESTART");
-    NSLog(@"iface: %@, port: %@", _iface, _port);
-    [self initializeServer:_iface port:_port];
+    NSLog(@"iface: %@, port: %@", self.iface, self.port);
+    [self initializeServer:self.iface port:self.port];
 }
 
 - (void)start:(NSString *)iface port:(NSNumber*)port {
     
-    _iface = iface;
-    _port = port;
+    self.iface = iface;
+    self.port = port;
     
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                            selector:@selector(stopServer)
-                                                name:UIApplicationWillResignActiveNotification
-                                              object:nil];
-    
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(restartServer)
-                                                 name:UIApplicationDidBecomeActiveNotification
-                                               object:nil];
     NSLog(@"server socket adapter start");
     NSLog(@"iface: %@, port: %@", iface, port);
     if ([self initializeServer:iface port:port] ) {
         self.startEventHandler();
     }
 }
+
+- (void)halt {
+    NSLog(@"server socket adapter stop");
+    [netService stop];
+    netService = nil;
+    if (ipv4socket) {
+        CFSocketInvalidate(ipv4socket);
+        CFRelease(ipv4socket);
+        ipv4socket = NULL;
+    }
+    
+    if (ipv6socket) {
+        CFSocketInvalidate(ipv6socket);
+        CFRelease(ipv6socket);
+        ipv6socket = NULL;
+    }
+}
 - (void)stop {
     NSLog(@"server socket adapter stop");
     [netService stop];
     netService = nil;
-    CFSocketInvalidate(ipv4socket);
-    CFSocketInvalidate(ipv6socket);
-//    if (ipv4socket) CFRelease(ipv4socket);
-//    if (ipv6socket) CFRelease(ipv6socket);
-//    ipv4socket = NULL;
-//    ipv6socket = NULL;
+    if (ipv4socket) {
+        CFSocketInvalidate(ipv4socket);
+        CFRelease(ipv4socket);
+        ipv4socket = NULL;
+    }
+    
+    if (ipv6socket) {
+        CFSocketInvalidate(ipv6socket);
+        CFRelease(ipv6socket);
+        ipv6socket = NULL;
+    }
     self.stopEventHandler(false);
 }
 

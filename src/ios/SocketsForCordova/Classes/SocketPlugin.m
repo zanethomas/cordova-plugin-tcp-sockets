@@ -221,10 +221,41 @@
     
 }
 
--(void) startServer: (CDVInvokedUrlCommand *) command {
-//    SocketAdapter *dummySocket = [SocketAdapter new];
-//    [dummySocket open:@"192.168.13.33" port:@1234];
+-(void)stopAllServers {
+    NSLog(@"STOP ALL SERVERS");
+    NSArray *keys = self->serverSocketAdapters.allKeys;
+    for (int i = 0; i < keys.count; ++i) {
+        ServerSocketAdapter *server = self->serverSocketAdapters[keys[i]];
+        NSLog(@"stop server key: %@, server.domain: %@, server.port: %@", keys[i], server.iface, server.port);
+        [server halt];
+    }
+}
+
+-(void)restartAllServers {
+    NSLog(@"RESTART ALL SERVERS");
+    NSArray *keys = self->serverSocketAdapters.allKeys;
+    for (int i = 0; i < keys.count; ++i) {
+        ServerSocketAdapter *server = self->serverSocketAdapters[keys[i]];
+        NSLog(@"restart server key: %@, server.domain: %@, server.port: %@", keys[i], server.iface, server.port);
+        [server restartServer];
+    }
     
+}
+
+-(void) startServer: (CDVInvokedUrlCommand *) command {
+    
+    if (!notificationsAreAdded) {
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(stopAllServers)
+                                                     name:UIApplicationWillResignActiveNotification
+                                                   object:nil];
+        
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(restartAllServers)
+                                                     name:UIApplicationDidBecomeActiveNotification
+                                                   object:nil];
+        notificationsAreAdded = true;
+    }
     
     NSLog(@"startServer command");
     NSString *serverSocketKey = [command.arguments objectAtIndex:0];
@@ -312,7 +343,6 @@
     NSLog(@"serverSocketKey: %@", serverSocketKey);
     
     ServerSocketAdapter *socketAdapter = [self getServerSocketAdapter:serverSocketKey];
-    [socketAdapter stop];
     
     [self.commandDelegate runInBackground:^{
         @try {
