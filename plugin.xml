@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0" id="sockets-for-cordova" version="1.1.0">
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0" id="cordova-plugin-tcp-sockets" version="1.1.0">
     <name>cordova-plugin-tcp-sockets</name>
     <description>
 		This Cordova plugin provides JavaScript API, that allows you to communicate with server through TCP protocol.
@@ -9,7 +9,7 @@
     <license>Apache 2.0</license>
     <keywords>socket,sockets,network,tcp,cordova</keywords>
 
-    <js-module src="socket.js" name="Socket">
+    <js-module src="src/main.js" name="Socket">
         <clobbers target="cordova.plugins.sockets" />
     </js-module>
     
