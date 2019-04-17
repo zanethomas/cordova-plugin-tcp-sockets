@@ -1,20 +1,12 @@
 cordova-plugin-tcp-sockets
 ==========================
-This Cordova plugin provides JavaScript API, that allows you to communicate with server through TCP protocol.
-
-Currently we support these platforms: iOS, Android, WP8.
-
-You can also get information about this plugin from our blog post http://www.blocshop.cz/blog/?p=6
+This Cordova plugin provides JavaScript API, that allows you to communicate with server through TCP raw packages.
 
 ## Installation
 
 Install this plugin simply by:
 
-`cordova plugin add cz.blocshop.socketsforcordova`
-
-or you can use GIT repository for most recent version:
-
-`cordova plugin add https://github.com/blocshop/sockets-for-cordova`
+`cordova plugin add https://github.com/philipptrenz/cordova-plugin-tcp-sockets`
 
 ## Sample usage
 Here is simple example of how to connect to remote server, consume data from it and close the connection.
