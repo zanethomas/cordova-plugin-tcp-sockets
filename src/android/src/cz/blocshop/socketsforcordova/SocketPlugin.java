@@ -36,7 +36,7 @@ import java.util.UUID;
 public class SocketsForCordova extends CordovaPlugin {
 	private Map<String, SocketAdapter> socketAdapters = new HashMap<String, SocketAdapter>();
 	private Map<String, ServerSocketAdapter> serverSocketAdapters = new HashMap<String, ServerSocketAdapter>();
-	
+
 	@Override
 	public boolean execute(String action, CordovaArgs args, CallbackContext callbackContext) throws JSONException {
 		if ("open".equals(action)) {

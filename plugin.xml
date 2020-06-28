@@ -12,17 +12,17 @@
     <js-module src="src/main.js" name="Socket">
         <clobbers target="cordova.plugins.sockets" />
     </js-module>
-    
+
     <!-- android -->
     <platform name="android">
         <config-file target="res/xml/config.xml" parent="/*">
-            <feature name="SocketsForCordova"> 
-                <param name="android-package" value="cz.blocshop.socketsforcordova.SocketPlugin"/>
+            <feature name="SocketsForCordova">
+                <param name="android-package" value="cz.blocshop.socketsforcordova.SocketsForCordova"/>
             </feature>
         </config-file>
 		<config-file target="AndroidManifest.xml" parent="/manifest">
             <uses-permission android:name="android.permission.INTERNET" />
-        </config-file>  
+        </config-file>
 		<source-file src="src/android/src/cz/blocshop/socketsforcordova/Logging.java" target-dir="src/cz/blocshop/socketsforcordova" />
         <source-file src="src/android/src/cz/blocshop/socketsforcordova/Consumer.java" target-dir="src/cz/blocshop/socketsforcordova" />
 		<source-file src="src/android/src/cz/blocshop/socketsforcordova/SocketAdapter.java" target-dir="src/cz/blocshop/socketsforcordova" />
@@ -31,11 +31,11 @@
 		<source-file src="src/android/src/cz/blocshop/socketsforcordova/ServerSocketAdapterImpl.java" target-dir="src/cz/blocshop/socketsforcordova" />
 		<source-file src="src/android/src/cz/blocshop/socketsforcordova/SocketAdapterOptions.java" target-dir="src/cz/blocshop/socketsforcordova" />
 		<source-file src="src/android/src/cz/blocshop/socketsforcordova/SocketPlugin.java" target-dir="src/cz/blocshop/socketsforcordova" />
-		
+
     </platform>
-    
+
     <!-- ios -->
-    <platform name="ios">    
+    <platform name="ios">
         <config-file target="config.xml" parent="/*">
             <feature name="SocketsForCordova">
                 <param name="ios-package" value="SocketPlugin" />
@@ -67,7 +67,7 @@
         <js-module src="src/windows/SocketPluginProxy.js" name="SocketPluginProxy">
             <merges target="" />
         </js-module>
-		
+
         <framework src="src/windows/native/Socket/Socket/Socket.csproj" custom="true" type="projectReference" versions="10.*" />
     </platform>
 </plugin>
