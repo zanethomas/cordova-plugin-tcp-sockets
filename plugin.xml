@@ -9,15 +9,15 @@
     <license>Apache 2.0</license>
     <keywords>socket,sockets,network,tcp,cordova</keywords>
 
-    <js-module src="src/main.js" name="Socket">
-        <clobbers target="cordova.plugins.sockets" />
+    <js-module src="src/main.js" name="SocketPlugin">
+        <clobbers target="SocketPlugin" />
     </js-module>
 
     <!-- android -->
     <platform name="android">
         <config-file target="res/xml/config.xml" parent="/*">
-            <feature name="SocketsForCordova">
-                <param name="android-package" value="cz.blocshop.socketsforcordova.SocketsForCordova"/>
+            <feature name="SocketPlugin">
+                <param name="android-package" value="cz.blocshop.socketsforcordova.SocketPlugin"/>
             </feature>
         </config-file>
 		<config-file target="AndroidManifest.xml" parent="/manifest">

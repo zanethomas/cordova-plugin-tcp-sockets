@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-public class SocketsForCordova extends CordovaPlugin {
+public class SocketPlugin extends CordovaPlugin {
 	private Map<String, SocketAdapter> socketAdapters = new HashMap<String, SocketAdapter>();
 	private Map<String, ServerSocketAdapter> serverSocketAdapters = new HashMap<String, ServerSocketAdapter>();
 
