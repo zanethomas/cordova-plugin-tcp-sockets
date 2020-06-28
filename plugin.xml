@@ -18,11 +18,12 @@
         <config-file target="res/xml/config.xml" parent="/*">
             <feature name="SocketPlugin">
                 <param name="android-package" value="cz.blocshop.socketsforcordova.SocketPlugin"/>
+                <param name="onload" value="true" />
             </feature>
         </config-file>
-		<config-file target="AndroidManifest.xml" parent="/manifest">
+		<!-- <config-file target="AndroidManifest.xml" parent="/manifest">
             <uses-permission android:name="android.permission.INTERNET" />
-        </config-file>
+        </config-file> -->
 		<source-file src="src/android/src/cz/blocshop/socketsforcordova/Logging.java" target-dir="src/cz/blocshop/socketsforcordova" />
         <source-file src="src/android/src/cz/blocshop/socketsforcordova/Consumer.java" target-dir="src/cz/blocshop/socketsforcordova" />
 		<source-file src="src/android/src/cz/blocshop/socketsforcordova/SocketAdapter.java" target-dir="src/cz/blocshop/socketsforcordova" />

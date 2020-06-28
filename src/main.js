@@ -21,7 +21,7 @@
 
 var SOCKET_EVENT = "SOCKET_EVENT";
 var SOCKET_SERVER_EVENT = "SOCKET_SERVER_EVENT";
-var CORDOVA_SERVICE_NAME = "SocketsForCordova";
+var CORDOVA_SERVICE_NAME = "SocketPlugin";
 
 Socket.State = {};
 Socket.State[Socket.State.CLOSED = 0] = "CLOSED";
