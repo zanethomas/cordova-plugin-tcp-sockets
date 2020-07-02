@@ -8,8 +8,10 @@
 #import <Foundation/Foundation.h>
 //#import <CoreServices/CoreServices.h>
 #import "SocketAdapter.h"
-
-NSString * const TCPServerErrorDomain;
+//
+// causes duplicate symbol in xcode
+//
+//NSString * const TCPServerErrorDomain;
 
 typedef enum {
     kTCPServerCouldNotBindToIPv4Address = 1,

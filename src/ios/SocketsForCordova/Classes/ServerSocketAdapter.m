@@ -9,15 +9,17 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-
-NSString * const TCPServerErrorDomain = @"TCPServerErrorDomain";
+//
+// causes duplicate symbol in xcode
+//
+//NSString * const TCPServerErrorDomain = @"TCPServerErrorDomain";
 int const WRITE_BUFFER_SIZE = 10 * 1024;
 
 #import "ServerSocketAdapter.h"
 
 @implementation ServerSocketAdapter
 
-//NSString *_iface; 
+//NSString *_iface;
 //NSNumber *_port;
 
 // This function is called by CFSocket when a new connection comes in.
@@ -46,7 +48,7 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
     CFSocketContext socketCtxt = {0, (__bridge void *)(self), NULL, NULL, NULL};
     ipv4socket = CFSocketCreate(kCFAllocatorDefault, PF_INET, SOCK_STREAM, IPPROTO_TCP, kCFSocketAcceptCallBack, (CFSocketCallBack)&TCPServerAcceptCallBack, &socketCtxt);
     ipv6socket = CFSocketCreate(kCFAllocatorDefault, PF_INET6, SOCK_STREAM, IPPROTO_TCP, kCFSocketAcceptCallBack, (CFSocketCallBack)&TCPServerAcceptCallBack, &socketCtxt);
-    
+
     if (NULL == ipv4socket || NULL == ipv6socket) {
         error = [[NSError alloc] initWithDomain:TCPServerErrorDomain code:kTCPServerNoSocketsAvailable userInfo:nil];
         if (ipv4socket) CFRelease(ipv4socket);
@@ -56,11 +58,11 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
         self.startErrorEventHandler([NSString stringWithFormat:@"%@, %@", error.localizedDescription, error.localizedFailureReason]);
         return false;
     }
-    
+
     int yes = 1;
     setsockopt(CFSocketGetNative(ipv4socket), SOL_SOCKET, SO_REUSEADDR, (void *)&yes, sizeof(yes));
     setsockopt(CFSocketGetNative(ipv6socket), SOL_SOCKET, SO_REUSEADDR, (void *)&yes, sizeof(yes));
-    
+
     // set up the IPv4 endpoint; if port is 0, this will cause the kernel to choose a port for us
     struct sockaddr_in addr4;
     memset(&addr4, 0, sizeof(addr4));
@@ -69,7 +71,7 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
     addr4.sin_port = htons(port.integerValue);
     addr4.sin_addr.s_addr = htonl(inet_addr([iface cStringUsingEncoding:NSASCIIStringEncoding])); //INADDR_ANY = all loca lost addresses (0.0.0.0)
     NSData *address4 = [NSData dataWithBytes:&addr4 length:sizeof(addr4)];
-    
+
     if (kCFSocketSuccess != CFSocketSetAddress(ipv4socket, (CFDataRef)address4)) {
         error = [[NSError alloc] initWithDomain:TCPServerErrorDomain code:kTCPServerCouldNotBindToIPv4Address userInfo:nil];
         if (ipv4socket) CFRelease(ipv4socket);
@@ -79,7 +81,7 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
         self.startErrorEventHandler([NSString stringWithFormat:@"%@, %@", error.localizedDescription, error.localizedFailureReason]);
         return false;
     }
-    
+
     if (0 == port) {
         // now that the binding was successful, we get the port number
         // -- we will need it for the v6 endpoint and for the NSNetService
@@ -87,7 +89,7 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
         memcpy(&addr4, [addr bytes], [addr length]);
         port = @(ntohs(addr4.sin_port));
     }
-    
+
     // set up the IPv6 endpoint
     struct sockaddr_in6 addr6;
     memset(&addr6, 0, sizeof(addr6));
@@ -96,7 +98,7 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
     addr6.sin6_port = htons(port.integerValue);
     memcpy(&(addr6.sin6_addr), &in6addr_any, sizeof(addr6.sin6_addr));
     NSData *address6 = [NSData dataWithBytes:&addr6 length:sizeof(addr6)];
-    
+
     if (kCFSocketSuccess != CFSocketSetAddress(ipv6socket, (CFDataRef)address6)) {
         error = [[NSError alloc] initWithDomain:TCPServerErrorDomain code:kTCPServerCouldNotBindToIPv6Address userInfo:nil];
         if (ipv4socket) CFRelease(ipv4socket);
@@ -106,17 +108,17 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
         self.startErrorEventHandler([NSString stringWithFormat:@"%@, %@", error.localizedDescription, error.localizedFailureReason]);
         return false;
     }
-    
+
     // set up the run loop sources for the sockets
     CFRunLoopRef cfrl = CFRunLoopGetMain();
     CFRunLoopSourceRef source4 = CFSocketCreateRunLoopSource(kCFAllocatorDefault, ipv4socket, 0);
     CFRunLoopAddSource(cfrl, source4, kCFRunLoopCommonModes);
     CFRelease(source4);
-    
+
     CFRunLoopSourceRef source6 = CFSocketCreateRunLoopSource(kCFAllocatorDefault, ipv6socket, 0);
     CFRunLoopAddSource(cfrl, source6, kCFRunLoopCommonModes);
     CFRelease(source6);
-    
+
     // we can only publish the service if we have a type to publish with
     type = @"_http._tcp.";
     if (nil != type) {
@@ -132,10 +134,10 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
         }
         netService = [[NSNetService alloc] initWithDomain:publishingDomain type:type name:publishingName port:(int)port.integerValue];
         [netService publish];
-        
+
         NSLog(@"publishingDomain: %@, publishingName: %@, port: %@", publishingDomain, publishingName, port.stringValue);
     }
-    
+
     return true;
 }
 
@@ -146,10 +148,10 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
 }
 
 - (void)start:(NSString *)iface port:(NSNumber*)port {
-    
+
     self.iface = iface;
     self.port = port;
-    
+
     NSLog(@"server socket adapter start");
     NSLog(@"iface: %@, port: %@", iface, port);
     if ([self initializeServer:iface port:port] ) {
@@ -166,7 +168,7 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
         CFRelease(ipv4socket);
         ipv4socket = NULL;
     }
-    
+
     if (ipv6socket) {
         CFSocketInvalidate(ipv6socket);
         CFRelease(ipv6socket);
@@ -182,7 +184,7 @@ static void TCPServerAcceptCallBack(CFSocketRef socket, CFSocketCallBackType typ
         CFRelease(ipv4socket);
         ipv4socket = NULL;
     }
-    
+
     if (ipv6socket) {
         CFSocketInvalidate(ipv6socket);
         CFRelease(ipv6socket);
