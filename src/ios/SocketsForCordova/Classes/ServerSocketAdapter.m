@@ -11,8 +11,11 @@
 #include <arpa/inet.h>
 
 NSString * const TCPServerErrorDomain = @"TCPServerErrorDomain";
-int const WRITE_BUFFER_SIZE = 10 * 1024;
-
+//
+// duplicte symbol in xcode
+//
+// int const WRITE_BUFFER_SIZE = 10 * 1024;
+//
 #import "ServerSocketAdapter.h"
 
 @implementation ServerSocketAdapter
