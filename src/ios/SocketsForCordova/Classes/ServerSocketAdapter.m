@@ -9,10 +9,8 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-//
-// causes duplicate symbol in xcode
-//
-//NSString * const TCPServerErrorDomain = @"TCPServerErrorDomain";
+
+NSString * const TCPServerErrorDomain = @"TCPServerErrorDomain";
 int const WRITE_BUFFER_SIZE = 10 * 1024;
 
 #import "ServerSocketAdapter.h"
