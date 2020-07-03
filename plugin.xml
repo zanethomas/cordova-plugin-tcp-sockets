@@ -10,7 +10,7 @@
     <keywords>socket,sockets,network,tcp,cordova</keywords>
 
     <js-module src="www/main.js" name="SocketPlugin">
-        <clobbers target="SocketPlugin" />
+        <clobbers target="cordova.plugins.sockets.SocketPlugin" />
     </js-module>
 
     <!-- android -->
