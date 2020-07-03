@@ -37,7 +37,7 @@
     <!-- ios -->
     <platform name="ios">
         <config-file target="config.xml" parent="/*">
-            <feature name="SocketsForCordova">
+            <feature name="SocketPlugin">
                 <param name="ios-package" value="SocketPlugin" />
             </feature>
         </config-file>
