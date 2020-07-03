@@ -10,7 +10,7 @@
     <keywords>socket,sockets,network,tcp,cordova</keywords>
 
     <js-module src="www/main.js" name="SocketPlugin">
-        <clobbers target="cordova.plugins.sockets" />
+        <clobbers target="SocketPlugin" />
     </js-module>
 
     <!-- android -->
@@ -37,7 +37,7 @@
     <!-- ios -->
     <platform name="ios">
         <config-file target="config.xml" parent="/*">
-            <feature name="SocketPlugin">
+            <feature name="SocketsForCordova">
                 <param name="ios-package" value="SocketPlugin" />
             </feature>
         </config-file>
