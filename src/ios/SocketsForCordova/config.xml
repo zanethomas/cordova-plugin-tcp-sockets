@@ -16,8 +16,8 @@
     <preference name="PageLength" value="0" />
     <preference name="PaginationBreakingMode" value="page" />
     <preference name="PaginationMode" value="unpaginated" />
-    <feature name="LocalStorage">
-        <param name="ios-package" value="CDVLocalStorage" />
+    <feature name="SocketPlugin">
+        <param name="ios-package" value="SocketPlugin" />
     </feature>
     <name>SocketsForCordova</name>
     <description>
